@@ -1,32 +1,29 @@
 <?php
+require_once 'db_connect.php';
 
 $errors  = [];
 $success = false;
-$old     = [];  
+$old     = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Sanitise every input
-    $fields = ['item_number','item_name','category','location','date_found','reported_by','contact','status'];
+    $fields = ['item_name','category','location_found','date_found','reported_by','contact_number','status'];
     foreach ($fields as $f) {
         $old[$f] = trim($_POST[$f] ?? '');
     }
 
     // ── Required-field validation ──────────────────────────────────────────────
-    if ($old['item_number'] === '')  $errors['item_number']  = 'Item number is required.';
-    if ($old['item_name'] === '')    $errors['item_name']    = 'Item name is required.';
-    if ($old['category'] === '')     $errors['category']     = 'Please select a category.';
-    if ($old['location'] === '')     $errors['location']     = 'Location found is required.';
-    if ($old['date_found'] === '')   $errors['date_found']   = 'Date found is required.';
-    if ($old['reported_by'] === '')  $errors['reported_by']  = 'Reported by is required.';
-    if ($old['status'] === '')       $errors['status']       = 'Please select a status.';
+    if ($old['item_name'] === '')       $errors['item_name']     = 'Item name is required.';
+    if ($old['category'] === '')        $errors['category']      = 'Please select a category.';
+    if ($old['location_found'] === '')  $errors['location_found']= 'Location found is required.';
+    if ($old['date_found'] === '')      $errors['date_found']    = 'Date found is required.';
+    if ($old['reported_by'] === '')     $errors['reported_by']   = 'Reported by is required.';
+    if ($old['status'] === '')          $errors['status']        = 'Please select a status.';
 
-    // Format validation 
-    if (empty($errors['item_number']) && !preg_match('/^[A-Za-z0-9\-]+$/', $old['item_number'])) {
-        $errors['item_number'] = 'Item number may only contain letters, numbers, and hyphens.';
-    }
-    if (empty($errors['contact']) && $old['contact'] !== '' && !preg_match('/^[\d\s\+\-\(\)]{7,20}$/', $old['contact'])) {
-        $errors['contact'] = 'Enter a valid contact number.';
+    // Format validation
+    if (empty($errors['contact_number']) && $old['contact_number'] !== '' && !preg_match('/^[\d\s\+\-\(\)]{7,20}$/', $old['contact_number'])) {
+        $errors['contact_number'] = 'Enter a valid contact number.';
     }
     if (empty($errors['date_found']) && $old['date_found'] !== '') {
         $dt = DateTime::createFromFormat('Y-m-d', $old['date_found']);
@@ -35,33 +32,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Insert if no errors 
+    // Insert if no errors
     if (empty($errors)) {
-        require 'includes/db_connect.php';
-
         $stmt = $pdo->prepare("
             INSERT INTO lost_items
-                (item_number, item_name, category, location, date_found, reported_by, contact, status)
+                (item_name, category, location_found, date_found, reported_by, contact_number, status)
             VALUES
-                (:item_number, :item_name, :category, :location, :date_found, :reported_by, :contact, :status)
+                (:item_name, :category, :location_found, :date_found, :reported_by, :contact_number, :status)
         ");
 
         try {
             $stmt->execute([
-                ':item_number' => $old['item_number'],
-                ':item_name'   => $old['item_name'],
-                ':category'    => $old['category'],
-                ':location'    => $old['location'],
-                ':date_found'  => $old['date_found'],
-                ':reported_by' => $old['reported_by'],
-                ':contact'     => $old['contact'],
-                ':status'      => $old['status'],
+                ':item_name'      => $old['item_name'],
+                ':category'       => $old['category'],
+                ':location_found' => $old['location_found'],
+                ':date_found'     => $old['date_found'],
+                ':reported_by'    => $old['reported_by'],
+                ':contact_number' => $old['contact_number'] !== '' ? $old['contact_number'] : null,
+                ':status'         => $old['status'],
             ]);
-            $success = true;
-            $old     = [];   // clear form on success
+            // PRG: redirect to search page so user can see the new record
+            $base = rtrim(dirname($_SERVER['PHP_SELF']), '/');
+            header('Location: ' . $base . '/search.php?inserted=1');
+            exit;
         } catch (PDOException $e) {
-            if ($e->getCode() == 23000) {
-                $errors['item_number'] = 'This item number already exists in the database.';
+            if (false) {
+                // reserved for future unique constraint errors
             } else {
                 $errors['_db'] = 'Database error: ' . $e->getMessage();
             }
@@ -143,18 +139,10 @@ function hasErr(string $key): string {
     </div>
     <?php endif; ?>
 
-    <form method="POST" action="add_item.php" id="lost-form" novalidate>
+    <form method="POST" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" id="lost-form" novalidate>
 
         <!-- Item Identity -->
         <div class="grid-2">
-            <div class="field<?= hasErr('item_number') ?>">
-                <label for="item_number">Item number <span class="required">*</span></label>
-                <div class="input-wrap">
-                    <span class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6"/></svg></span>
-                    <input type="text" id="item_number" name="item_number" placeholder="e.g. LF-2024-001" value="<?= old('item_number') ?>" maxlength="20" autocomplete="off">
-                </div>
-                <?= err('item_number') ?>
-            </div>
 
             <div class="field<?= hasErr('item_name') ?>">
                 <label for="item_name">Item name <span class="required">*</span></label>
@@ -187,13 +175,13 @@ function hasErr(string $key): string {
         <!-- ── Found Details -->
 
         <div class="grid-2">
-            <div class="field col-span-2<?= hasErr('location') ?>">
-                <label for="location">Location found <span class="required">*</span></label>
+            <div class="field col-span-2<?= hasErr('location_found') ?>">
+                <label for="location_found">Location found <span class="required">*</span></label>
                 <div class="input-wrap">
                     <span class="ico"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
-                    <input type="text" id="location" name="location" placeholder="e.g. Main library, 2nd floor reading room" value="<?= old('location') ?>" maxlength="150">
+                    <input type="text" id="location_found" name="location_found" placeholder="e.g. Main library, 2nd floor reading room" value="<?= old('location_found') ?>" maxlength="200">
                 </div>
-                <?= err('location') ?>
+                <?= err('location_found') ?>
             </div>
 
             <div class="field<?= hasErr('date_found') ?>">
@@ -218,17 +206,17 @@ function hasErr(string $key): string {
                 <?= err('reported_by') ?>
             </div>
 
-            <div class="field<?= hasErr('contact') ?>">
-                <label for="contact">Contact number</label>
+            <div class="field<?= hasErr('contact_number') ?>">
+                <label for="contact_number">Contact number</label>
                 <div class="input-wrap">
                     <span class="ico"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.42 2 2 0 0 1 3.6 1.24h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.82a16 16 0 0 0 6.16 6.16l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.04z"/></svg></span>
-                    <input type="text" id="contact" name="contact" placeholder="e.g. 077 123 4567" value="<?= old('contact') ?>" maxlength="20">
+                    <input type="text" id="contact_number" name="contact_number" placeholder="e.g. 077 123 4567" value="<?= old('contact_number') ?>" maxlength="16">
                 </div>
-                <?= err('contact') ?>
+                <?= err('contact_number') ?>
             </div>
         </div>
 
-        <!-- ── Status ─────────────────────────────────────────────────────── -->
+        <!-- Status -->
         <div class="section-label">
             <div class="section-icon">
                 <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7"/><path d="M8 5v3l2 2" stroke="#6c9fff" stroke-width="1.2" stroke-linecap="round" fill="none"/></svg>

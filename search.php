@@ -84,6 +84,12 @@ if(isset($_POST['search'])) {
 
 <h2>Search Lost Items</h2>
 
+<?php if (isset($_GET['inserted']) && $_GET['inserted'] === '1'): ?>
+<div style="background:#d1fae5;border:1px solid #6ee7b7;color:#065f46;padding:12px 18px;border-radius:8px;margin-bottom:16px;font-family:Arial,sans-serif;">
+    ✅ <strong>Item registered successfully!</strong> Your record has been saved.
+</div>
+<?php endif; ?>
+
 <form method="POST">
 
     <input type="text"
